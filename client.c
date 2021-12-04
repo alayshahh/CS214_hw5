@@ -1,10 +1,9 @@
-#include <stdio.h>
-#include <stdbool.h>
-#include <time.h>
-
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <time.h>
 
 // Dimensions for the drawn grid (should be GRIDSIZE * texture dimensions)
 #define GRID_DRAW_WIDTH 640
@@ -25,8 +24,7 @@ typedef struct
     int y;
 } Position;
 
-typedef enum
-{
+typedef enum {
     TILE_GRASS,
     TILE_TOMATO
 } TILETYPE;
@@ -43,21 +41,19 @@ bool shouldExit = false;
 TTF_Font* font;
 
 // get a random value in the range [0, 1]
-double rand01()
-{
-    return (double) rand() / (double) RAND_MAX;
+double rand01() {
+    return (double)rand() / (double)RAND_MAX;
 }
 
-void initGrid()
-{
+void initGrid() {
+    printf("hello :)");
     for (int i = 0; i < GRIDSIZE; i++) {
         for (int j = 0; j < GRIDSIZE; j++) {
             double r = rand01();
             if (r < 0.1) {
                 grid[i][j] = TILE_TOMATO;
                 numTomatoes++;
-            }
-            else
+            } else
                 grid[i][j] = TILE_GRASS;
         }
     }
@@ -73,8 +69,7 @@ void initGrid()
         initGrid();
 }
 
-void initSDL()
-{
+void initSDL() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         fprintf(stderr, "Error initializing SDL: %s\n", SDL_GetError());
         exit(EXIT_FAILURE);
@@ -92,8 +87,7 @@ void initSDL()
     }
 }
 
-void moveTo(int x, int y)
-{
+void moveTo(int x, int y) {
     // Prevent falling off the grid
     if (x < 0 || x >= GRIDSIZE || y < 0 || y >= GRIDSIZE)
         return;
@@ -119,8 +113,7 @@ void moveTo(int x, int y)
     }
 }
 
-void handleKeyDown(SDL_KeyboardEvent* event)
-{
+void handleKeyDown(SDL_KeyboardEvent* event) {
     // ignore repeat events if key is held down
     if (event->repeat)
         return;
@@ -141,28 +134,26 @@ void handleKeyDown(SDL_KeyboardEvent* event)
         moveTo(playerPosition.x + 1, playerPosition.y);
 }
 
-void processInputs()
-{
-	SDL_Event event;
+void processInputs() {
+    SDL_Event event;
 
-	while (SDL_PollEvent(&event)) {
-		switch (event.type) {
-			case SDL_QUIT:
-				shouldExit = true;
-				break;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_QUIT:
+                shouldExit = true;
+                break;
 
             case SDL_KEYDOWN:
                 handleKeyDown(&event.key);
-				break;
+                break;
 
-			default:
-				break;
-		}
-	}
+            default:
+                break;
+        }
+    }
 }
 
-void drawGrid(SDL_Renderer* renderer, SDL_Texture* grassTexture, SDL_Texture* tomatoTexture, SDL_Texture* playerTexture)
-{
+void drawGrid(SDL_Renderer* renderer, SDL_Texture* grassTexture, SDL_Texture* tomatoTexture, SDL_Texture* playerTexture) {
     SDL_Rect dest;
     for (int i = 0; i < GRIDSIZE; i++) {
         for (int j = 0; j < GRIDSIZE; j++) {
@@ -180,8 +171,7 @@ void drawGrid(SDL_Renderer* renderer, SDL_Texture* grassTexture, SDL_Texture* to
     SDL_RenderCopy(renderer, playerTexture, NULL, &dest);
 }
 
-void drawUI(SDL_Renderer* renderer)
-{
+void drawUI(SDL_Renderer* renderer) {
     // largest score/level supported is 2147483647
     char scoreStr[18];
     char levelStr[18];
@@ -215,8 +205,7 @@ void drawUI(SDL_Renderer* renderer)
     SDL_DestroyTexture(levelTexture);
 }
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     srand(time(NULL));
 
     level = 1;
@@ -241,15 +230,14 @@ int main(int argc, char* argv[])
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
 
-	if (renderer == NULL)
-	{
-		fprintf(stderr, "Error creating renderer: %s\n", SDL_GetError());
+    if (renderer == NULL) {
+        fprintf(stderr, "Error creating renderer: %s\n", SDL_GetError());
         exit(EXIT_FAILURE);
-	}
+    }
 
-    SDL_Texture *grassTexture = IMG_LoadTexture(renderer, "resources/grass.png");
-    SDL_Texture *tomatoTexture = IMG_LoadTexture(renderer, "resources/tomato.png");
-    SDL_Texture *playerTexture = IMG_LoadTexture(renderer, "resources/player.png");
+    SDL_Texture* grassTexture = IMG_LoadTexture(renderer, "resources/grass.png");
+    SDL_Texture* tomatoTexture = IMG_LoadTexture(renderer, "resources/tomato.png");
+    SDL_Texture* playerTexture = IMG_LoadTexture(renderer, "resources/player.png");
 
     // main game loop
     while (!shouldExit) {
@@ -263,7 +251,7 @@ int main(int argc, char* argv[])
 
         SDL_RenderPresent(renderer);
 
-        SDL_Delay(16); // 16 ms delay to limit display to 60 fps
+        SDL_Delay(16);  // 16 ms delay to limit display to 60 fps
     }
 
     // clean up everything
