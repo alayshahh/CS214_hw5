@@ -14,7 +14,10 @@ runclient: $(OUTPUT)
 	LD_LIBRARY_PATH=lib ./client
 
 client: client.o
-	gcc $(CFLAGS) -o $@ $^ $(LFLAGS)
+	gcc $(CFLAGS) -o $@ $^ $(LFLAGS) 
+
+server: server.o 
+	gcc $(CFLAGS) -o $@ $^ $(LFLAGS) csapp.o -lpthread
 
 clean:
 	rm -f $(OUTPUT) *.o
