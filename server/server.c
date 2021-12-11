@@ -26,17 +26,13 @@ void echo(int connfd) {
     }
 }
 
+// will set up everything for the client, ensuers there are enough spots for the cleint, tells client which player they are, etc.
 void* clientThread(void* vargp) {
     int connfd = *((int*)vargp);
     Pthread_detach(pthread_self());
     int player = EMPTY_SOCKET;
     Free(vargp);
-    printf("trying lock\n");
-    int l;
-    while ((l = pthread_mutex_lock(&lock)) != 0) {
-        ;
-    }
-    printf("lock obtained\n");
+    pthread_mutex_lock(&lock);
     for (int i = 0; i < MAX_CLIENTS; i++) {  // add the fd for the socket into the sockets array, put it in the first empty (NULL) spot in the array
         if (sockets[i] == EMPTY_SOCKET) {
             sockets[i] = connfd;
@@ -44,18 +40,15 @@ void* clientThread(void* vargp) {
             break;
         }
     }
-    if (player != -1) {
-        numPlayers++;
-        sockets[player] = connfd;
+    if (player == -1) {
+        pthread_mutex_unlock(&lock);
+        return NULL;
     }
-    printf("sockets array: \n");
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        printf("sockets[%d] = %d \n", i, sockets[i]);
-    }
+    numPlayers++;
+    sockets[player] = connfd;
+    Rio_writen(connfd, &player, sizeof(player));  // if the player is accepted let them know which player they are
     pthread_mutex_unlock(&lock);
-    if (player != -1) {
-        echo(connfd);
-    }
+    echo(connfd);
     Close(connfd);
     pthread_mutex_lock(&lock);
     numPlayers--;
@@ -128,6 +121,17 @@ void initPlayerPositions(Position playerPostions[MAX_CLIENTS]) {
     }
 }
 // returns TRUE (if valid move) or FALSE (if invalid)
+
+void addPlayer(Position playerPositions[MAX_CLIENTS], int i) {
+    int x = random10();
+    int y = random10();
+    Position pos = playerPositions[i];
+    pos.x = x;
+    pos.y = y;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        // do some logic to add player mid game
+    }
+}
 int makeMove(TILE grid[10][10], Position playerPositions[MAX_CLIENTS], Move* move, int* numTomato) {
     int player = move->client;
     Position p = playerPositions[player];
@@ -160,17 +164,18 @@ int makeMove(TILE grid[10][10], Position playerPositions[MAX_CLIENTS], Move* mov
     }
     if (grid[x][y] == TILE_TOMATO) {
         *numTomato = *numTomato - 1;  // update number of tomatoes
-        grid[x][y] = TILE_GRASS;
+        grid[x][y] = TILE_GRASS;      // upadte grid
     }
     p.x = x;  // set player x position
     p.y = y;  // set player y postion
     return TRUE;
 }
 
+// event loop, inits the game for all connected players, and then
 void* eventLoop(void* vargp) {
     Pthread_detach(pthread_self());
-    TILE grid[GRIDSIZE][GRIDSIZE];
-    Position playerPositions[4];  // keeps track of player positions
+    TILE grid[GRIDSIZE][GRIDSIZE];          // game board
+    Position playerPositions[MAX_CLIENTS];  // keeps track of player positions
     srand(time(NULL));
 
     for (int i = 0; i < MAX_CLIENTS; i++) {  // set the null player positions
@@ -183,8 +188,6 @@ void* eventLoop(void* vargp) {
         // init set up the game / each level
         if (numPlayers <= 0) {  // check if there are any players connected
             continue;
-        } else {
-            printf("num players: %d \n", numPlayers);
         }
 
         int shouldExit = FALSE;
@@ -211,15 +214,20 @@ void* eventLoop(void* vargp) {
             // game loop
             pthread_mutex_lock(&lock);
             Move* m = dequeue(&eventQueue);
-            for (int i = 0; i < MAX_CLIENTS; i++) {  // move all disconnected players off the board
+            for (int i = 0; i < MAX_CLIENTS; i++) {  // move all disconnected players off the board & add new players to the board & send board info
                 if (sockets[i] == EMPTY_SOCKET) {
                     playerPositions[i].x = OFF_BOARD;
                     playerPositions[i].y = OFF_BOARD;
+                } else if (playerPositions[i].x == OFF_BOARD && playerPositions[i].y == OFF_BOARD) {  // new player has joined, connfd in sockets[i]
+                    addPlayer(&playerPositions[i]);
+                    // write the grid
+                    // write player positions
                 }
             }
-            if (numPlayers == 0) {
+            if (numPlayers == 0) {  // if there are no more players, then we want to exit the game, so new players can join
                 shouldExit = TRUE;
             }
+
             pthread_mutex_unlock(&lock);
             if (m == NULL) {
                 continue;
@@ -259,7 +267,7 @@ int main(int argc, char** argv) {
 
     listenfd = Open_listenfd(argv[1]);
     while (1) {
-        if (numPlayers < MAX_CLIENTS) {  // if the number of clients == 4, then we dont wanna accept more players
+        if (numPlayers < MAX_CLIENTS) {  // if the number of clients == MAX_CLIENTS, then we dont wanna accept more players
             clientlen = sizeof(struct sockaddr_storage);
             connfdp = Malloc(sizeof(int));
             *connfdp = Accept(listenfd, (SA*)&clientaddr, &clientlen);
