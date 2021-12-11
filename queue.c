@@ -2,8 +2,6 @@
 
 #include <stdlib.h>
 
-#include "constants.h"
-
 void enqueue(MoveQueue* queue, Move* move) {
     if (queue->head == NULL) {
         queue->tail = move;
@@ -22,7 +20,8 @@ Move* dequeue(MoveQueue* queue) {
     return move;
 }
 void clearQueue(MoveQueue* queue) {
-    while (Move* m = dequeue(queue) != NULL) {
+    Move* m;
+    while ((m = dequeue(queue)) != NULL) {
         free(m);
     }
 }

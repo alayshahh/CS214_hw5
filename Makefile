@@ -1,5 +1,5 @@
-OUTPUT = client
-CFLAGS = -g -Wall -Wvla -I inc -D_REENTRANT
+OUTPUT = csapp queue
+CFLAGS = -g -Wall -Wvla
 LFLAGS = -L lib -lSDL2 -lSDL2_image -lSDL2_ttf
 
 %.o: %.c %.h
@@ -13,14 +13,16 @@ all: $(OUTPUT)
 runclient: $(OUTPUT)
 	LD_LIBRARY_PATH=lib ./client
 
-client: client.o
-	gcc $(CFLAGS) -o $@ $^ $(LFLAGS) 
 
 csapp: csapp.o 
-	gcc -c csapp.c -lpthread
+	gcc $(CFLAGS) -c csapp.c -lpthread
 
-server: server.o 
-	gcc $(CFLAGS) -o $@ $^ csapp.o -lpthread
+echoclient: echoclient.c
+	gcc $(CFLAGS) echoclient.c csapp.o -lpthread -o $@
+
+queue:
+	gcc $(CFLAGS) -c queue.c 	
+
 
 clean:
-	rm -f $(OUTPUT) *.o
+	rm -f  *.o

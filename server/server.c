@@ -14,31 +14,48 @@ pthread_mutex_t lock;
 // stroes the fds of each socket connected to the server
 int sockets[MAX_CLIENTS];
 
-// void echo(int connfd) {
-//     size_t n;
-//     char buf[MAXLINE];
-//     rio_t rio;
-//     Rio_readinitb(&rio, connfd);
-//     while ((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) {
-//         printf("server received %d bytes\n", (int)n);
-//         Rio_writen(connfd, buf, n);
-//     }
-// }
+void echo(int connfd) {
+    size_t n;
+    int buf[MAXLINE];
+    rio_t rio;
+    Rio_readinitb(&rio, connfd);
+    while ((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) {
+        printf("server received %d bytes: value in buffer \n", (int)n);
 
-// void *thread(void *vargp) {
-//     int connfd = *((int *)vargp);
-//     Pthread_detach(pthread_self());
-//     Free(vargp);
-//     pthread_mutex_lock(&lock);
-//     numPlayers++;
-//     pthread_mutex_unlock(&lock);
-//     echo(connfd);
-//     Close(connfd);
-//     pthread_mutex_lock(&lock);
-//     numPlayers++;
-//     pthread_mutex_unlock(&lock);
-//     return NULL;
-// }
+        // Rio_writen(connfd, buf, n);
+    }
+}
+
+void* clientThread(void* vargp) {
+    int connfd = *((int*)vargp);
+    Pthread_detach(pthread_self());
+    int player = EMPTY_SOCKET;
+    Free(vargp);
+    pthread_mutex_lock(&lock);
+    for (int i = 0; i < MAX_CLIENTS; i++) {  // add the fd for the socket into the sockets array, put it in the first empty (NULL) spot in the array
+        if (sockets[i] == EMPTY_SOCKET) {
+            sockets[i] = connfd;
+            player = i;
+            break;
+        }
+    }
+    if (player == EMPTY_SOCKET) {
+        // printf("server is full, no new players can be added!\n");
+        Close(connfd);
+        pthread_mutex_unlock(&lock);
+        return NULL;
+    }
+    numPlayers++;  // update the number of players
+    sockets[player] = connfd;
+    pthread_mutex_unlock(&lock);
+    echo(connfd);
+    Close(connfd);
+    pthread_mutex_lock(&lock);
+    numPlayers--;
+    sockets[player] = EMPTY_SOCKET;
+    pthread_mutex_unlock(&lock);
+    return NULL;
+}
 
 // get a random value in the range [0, 1]
 double rand01() {
@@ -50,7 +67,7 @@ int random10() {
     return rand() % 10;
 }
 
-int initGrid(TILE** grid, Position* playerPositions) {
+int initGrid(TILE grid[10][10], Position playerPositions[MAX_CLIENTS]) {
     int numTomatoes = 0;
     for (int i = 0; i < GRIDSIZE; i++) {
         for (int j = 0; j < GRIDSIZE; j++) {
@@ -67,7 +84,7 @@ int initGrid(TILE** grid, Position* playerPositions) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         int x = playerPositions[i].x;
         int y = playerPositions[i].y;
-        if (x == -1 && y == -1) {
+        if (x == OFF_BOARD && y == OFF_BOARD) {
             continue;
         }
         if (grid[x][y] == TILE_TOMATO) {
@@ -84,7 +101,7 @@ int initGrid(TILE** grid, Position* playerPositions) {
 
 void initPlayerPositions(Position* playerPostions) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (sockets[i] != NULL) {
+        if (sockets[i] != EMPTY_SOCKET) {
             int x = random10();
             int y = random10();
             for (int j = 0; j < i; j++) {
@@ -94,18 +111,18 @@ void initPlayerPositions(Position* playerPostions) {
                 }
             }
         } else {  // if no connection to that player, set the position to -1,-1
-            playerPostions[i].x = -1;
-            playerPostions[i].y = -1;
+            playerPostions[i].x = OFF_BOARD;
+            playerPostions[i].y = OFF_BOARD;
         }
     }
 }
 // returns TRUE (if valid move) or FALSE (if invalid)
-int makeMove(TILE** grid, Position* playerPositions, Move* move, int* numTomato) {
+int makeMove(TILE grid[10][10], Position playerPositions[MAX_CLIENTS], Move* move, int* numTomato) {
     int player = move->client;
     Position p = playerPositions[player];
     int x = p.x;
     int y = p.y;
-    if (x == -1 && y == -1) {  // player is not connected anymore, not on board yet
+    if (x == OFF_BOARD && y == OFF_BOARD) {  // player is not connected anymore, not on board yet
         return FALSE;
     }
     switch (move->dir) {
@@ -134,22 +151,23 @@ int makeMove(TILE** grid, Position* playerPositions, Move* move, int* numTomato)
         *numTomato = *numTomato - 1;  // update number of tomatoes
         grid[x][y] = TILE_GRASS;
     }
-    p.x = x;   // set player x position
-    p, y = y;  // set player y postion
+    p.x = x;  // set player x position
+    p.y = y;  // set player y postion
     return TRUE;
 }
 
-void eventLoop(void* vargp) {
+void* eventLoop(void* vargp) {
+    Pthread_detach(pthread_self());
     TILE grid[GRIDSIZE][GRIDSIZE];
     Position playerPositions[4];  // keeps track of player positions
     srand(time(NULL));
 
     for (int i = 0; i < 4; i++) {  // set the null player positions
         playerPositions->client = i;
-        playerPositions->x = -1;
-        playerPositions->y = -1;
+        playerPositions->x = OFF_BOARD;
+        playerPositions->y = OFF_BOARD;
     }
-    while (1) {
+    while (1) {  // inifite loop ->
         // init set up the game / each level
         if (numPlayers <= 0) {  // check if there are any players connected
             continue;
@@ -160,23 +178,25 @@ void eventLoop(void* vargp) {
         int numTomatoes = initGrid(grid, playerPositions);
 
         // write grid & init positions to clients
-        for (int i = 0; i < MAX_CLIENTS; i) {
-            if (sockets[i] != NULL) {
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (sockets[i] != EMPTY_SOCKET) {
                 Rio_writen(sockets[i], grid, sizeof(grid));
+                Rio_writen(sockets[i], (void*)'\n', 1);
                 Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
+                printf("wrote to socket\n");
             }
         }
         pthread_mutex_lock(&lock);
-        clearQueue(&eventQueue);
+        clearQueue(&eventQueue);  // remove any backlog of events that were not processed from last game
         pthread_mutex_unlock(&lock);
         while (!shouldExit) {
             // game loop
             pthread_mutex_lock(&lock);
             Move* m = dequeue(&eventQueue);
-            for (int i = 0; i < MAX_CLIENTS) {  // move all disconnected players off the board
-                if (sockets[i] == NULL) {
-                    playerPositions[i].x = -1;
-                    playerPositions[i].y = -1;
+            for (int i = 0; i < MAX_CLIENTS; i++) {  // move all disconnected players off the board
+                if (sockets[i] == EMPTY_SOCKET) {
+                    playerPositions[i].x = OFF_BOARD;
+                    playerPositions[i].y = OFF_BOARD;
                 }
             }
             if (numPlayers == 0) {
@@ -186,14 +206,14 @@ void eventLoop(void* vargp) {
             if (m == NULL) {
                 continue;
             }
-            if (makeMove(grid, playerPositions, m, &numTomatoes)) {  // make the move, if return true then send all updated poisitons to the client
+            if (makeMove(grid, playerPositions, m, &numTomatoes)) {  // make the move, if return TRUE then send all updated poisitons to the client
                 for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (sockets[i] != NULL) {
+                    if (sockets[i] != EMPTY_SOCKET) {
                         Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
                     }
                 }
             }
-            free(m);  // free the dqueued move
+            free(m);  // free the dequeued move
             if (numTomatoes == 0) {
                 shouldExit = TRUE;
             }
@@ -206,23 +226,27 @@ int main(int argc, char** argv) {
         printf("\n mutex init has failed\n");
         return 1;
     }
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        sockets[i] = EMPTY_SOCKET;
+    }
 
     int listenfd, *connfdp;
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
     pthread_t tid;
 
-    // Pthread_create(&tid, NULL,   ) // create event loop thread
+    Pthread_create(&tid, NULL, eventLoop, NULL);  // create event loop thread
 
-    int port = atoi(argv[1]);
+    // int port = atoi(argv[1]);
 
-    listenfd = Open_listenfd(port);
+    listenfd = Open_listenfd(argv[1]);
     while (1) {
         if (numPlayers < MAX_CLIENTS) {  // if the number of clients == 4, then we dont wanna accept more players
             clientlen = sizeof(struct sockaddr_storage);
             connfdp = Malloc(sizeof(int));
             *connfdp = Accept(listenfd, (SA*)&clientaddr, &clientlen);
-            Pthread_create(&tid, NULL, thread, connfdp);
+            printf("some connection has been made\n");
+            Pthread_create(&tid, NULL, clientThread, connfdp);
         }
     }
 }

@@ -1,6 +1,7 @@
 #include "constants.h"
-
-typedef struct MoveQueue{
+#ifndef QUEUE_H
+#define QUEUE_H
+typedef struct MoveQueue {
     Move* head;
     Move* tail;
 } MoveQueue;
@@ -8,3 +9,4 @@ typedef struct MoveQueue{
 void enqueue(MoveQueue* queue, Move* move);
 Move* dequeue(MoveQueue* queue);
 void clearQueue(MoveQueue* queue);
+#endif
