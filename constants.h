@@ -53,4 +53,8 @@ typedef struct Move {
 
 #define OFF_BOARD -1
 
+#define GRID "G"
+
+#define POSITIONS "P"
+
 #endif

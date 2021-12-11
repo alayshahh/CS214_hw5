@@ -2,11 +2,12 @@
  * echoclient.c - An echo client
  */
 /* $begin echoclientmain */
+#include "constants.h"
 #include "csapp.h"
 
 int main(int argc, char **argv) {
     int clientfd;
-    char *host, *port, buf[MAXLINE];
+    char *host, *port /*, buf[MAXLINE]*/;
     rio_t rio;
 
     if (argc != 3) {
@@ -19,15 +20,28 @@ int main(int argc, char **argv) {
     clientfd = Open_clientfd(host, port);
     Rio_readinitb(&rio, clientfd);
 
-    // while (Fgets(buf, MAXLINE, stdin) != NULL) {
-    //     Rio_writen(clientfd, buf, strlen(buf));
-    //     Rio_readlineb(&rio, buf, MAXLINE);
-    //     Fputs(buf, stdout);
-    // }
     size_t n;
-    while ((n = Rio_readnb(&rio, buf, MAXLINE)) != 0) {
-        printf("server received %d bytes\n", (int)n);
-        Fputs(buf, stdout);
+    char input[2];
+    TILE grid[GRIDSIZE][GRIDSIZE];
+    Position playerPositions[MAX_CLIENTS];
+    while ((n = Rio_readnb(&rio, &input, 2)) != 0) {
+        // printf("server received %d bytes -> input: %c \n", (int)n, input);
+        if (input[0] == 'G') {  // next thing we will receive is a grid
+            printf("receved grid object \n");
+            Rio_readnb(&rio, &grid, sizeof(grid));
+            for (int i = 0; i < GRIDSIZE; i++) {
+                printf("[ ");
+                for (int j = 0; j < GRIDSIZE; j++) {
+                    printf("%d, ", grid[i][j]);
+                }
+                printf("]\n");
+            }
+        } else {  // we received a 'P' (POSITIONS)
+            Rio_readnb(&rio, &playerPositions, sizeof(playerPositions));
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                printf("Player %d is at (%d, %d)\n", playerPositions[i].client, playerPositions[i].x, playerPositions[i].y);
+            }
+        }
 
         // Rio_writen(connfd, buf, n);
     }

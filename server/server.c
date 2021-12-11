@@ -180,8 +180,9 @@ void* eventLoop(void* vargp) {
         // write grid & init positions to clients
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (sockets[i] != EMPTY_SOCKET) {
+                Rio_writen(sockets[i], GRID, sizeof(GRID));
                 Rio_writen(sockets[i], grid, sizeof(grid));
-                Rio_writen(sockets[i], (void*)'\n', 1);
+                Rio_writen(sockets[i], POSITIONS, sizeof(POSITIONS));
                 Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
                 printf("wrote to socket\n");
             }
