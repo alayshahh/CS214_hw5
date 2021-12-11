@@ -16,8 +16,11 @@ runclient: $(OUTPUT)
 client: client.o
 	gcc $(CFLAGS) -o $@ $^ $(LFLAGS) 
 
+csapp: csapp.o 
+	gcc -c csapp.c -lpthread
+
 server: server.o 
-	gcc $(CFLAGS) -o $@ $^ $(LFLAGS) csapp.o -lpthread
+	gcc $(CFLAGS) -o $@ $^ csapp.o -lpthread
 
 clean:
 	rm -f $(OUTPUT) *.o

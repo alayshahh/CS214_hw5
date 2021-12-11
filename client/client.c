@@ -5,31 +5,9 @@
 #include <stdio.h>
 #include <time.h>
 
-// Dimensions for the drawn grid (should be GRIDSIZE * texture dimensions)
-#define GRID_DRAW_WIDTH 640
-#define GRID_DRAW_HEIGHT 640
+#include "../constants.h"
 
-#define WINDOW_WIDTH GRID_DRAW_WIDTH
-#define WINDOW_HEIGHT (HEADER_HEIGHT + GRID_DRAW_HEIGHT)
-
-// Header displays current score
-#define HEADER_HEIGHT 50
-
-// Number of cells vertically/horizontally in the grid
-#define GRIDSIZE 10
-
-typedef struct
-{
-    int x;
-    int y;
-} Position;
-
-typedef enum {
-    TILE_GRASS,
-    TILE_TOMATO
-} TILETYPE;
-
-TILETYPE grid[GRIDSIZE][GRIDSIZE];
+TILE grid[GRIDSIZE][GRIDSIZE];
 
 Position playerPosition;
 int score;
@@ -45,29 +23,26 @@ double rand01() {
     return (double)rand() / (double)RAND_MAX;
 }
 
-void initGrid() {
-    printf("hello :)");
-    for (int i = 0; i < GRIDSIZE; i++) {
-        for (int j = 0; j < GRIDSIZE; j++) {
-            double r = rand01();
-            if (r < 0.1) {
-                grid[i][j] = TILE_TOMATO;
-                numTomatoes++;
-            } else
-                grid[i][j] = TILE_GRASS;
-        }
-    }
-
-    // force player's position to be grass
-    if (grid[playerPosition.x][playerPosition.y] == TILE_TOMATO) {
-        grid[playerPosition.x][playerPosition.y] = TILE_GRASS;
-        numTomatoes--;
-    }
-
-    // ensure grid isn't empty
-    while (numTomatoes == 0)
-        initGrid();
-}
+// void initGrid() {
+//     for (int i = 0; i < GRIDSIZE; i++) {
+//         for (int j = 0; j < GRIDSIZE; j++) {
+//             double r = rand01();
+//             if (r < 0.1) {
+//                 grid[i][j] = TILE_TOMATO;
+//                 numTomatoes++;
+//             } else
+//                 grid[i][j] = TILE_GRASS;
+//         }
+//     }
+//     // force player's position to be grass
+//     if (grid[playerPosition.x][playerPosition.y] == TILE_TOMATO) {
+//         grid[playerPosition.x][playerPosition.y] = TILE_GRASS;
+//         numTomatoes--;
+//     }
+//     // ensure grid isn't empty
+//     while (numTomatoes == 0)
+//         initGrid();
+// }
 
 void initSDL() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
