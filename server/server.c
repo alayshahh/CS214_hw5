@@ -31,7 +31,12 @@ void* clientThread(void* vargp) {
     Pthread_detach(pthread_self());
     int player = EMPTY_SOCKET;
     Free(vargp);
-    pthread_mutex_lock(&lock);
+    printf("trying lock\n");
+    int l;
+    while ((l = pthread_mutex_lock(&lock)) != 0) {
+        ;
+    }
+    printf("lock obtained\n");
     for (int i = 0; i < MAX_CLIENTS; i++) {  // add the fd for the socket into the sockets array, put it in the first empty (NULL) spot in the array
         if (sockets[i] == EMPTY_SOCKET) {
             sockets[i] = connfd;
@@ -39,16 +44,18 @@ void* clientThread(void* vargp) {
             break;
         }
     }
-    if (player == EMPTY_SOCKET) {
-        // printf("server is full, no new players can be added!\n");
-        Close(connfd);
-        pthread_mutex_unlock(&lock);
-        return NULL;
+    if (player != -1) {
+        numPlayers++;
+        sockets[player] = connfd;
     }
-    numPlayers++;  // update the number of players
-    sockets[player] = connfd;
+    printf("sockets array: \n");
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        printf("sockets[%d] = %d \n", i, sockets[i]);
+    }
     pthread_mutex_unlock(&lock);
-    echo(connfd);
+    if (player != -1) {
+        echo(connfd);
+    }
     Close(connfd);
     pthread_mutex_lock(&lock);
     numPlayers--;
@@ -99,18 +106,22 @@ int initGrid(TILE grid[10][10], Position playerPositions[MAX_CLIENTS]) {
     return numTomatoes;
 }
 
-void initPlayerPositions(Position* playerPostions) {
+void initPlayerPositions(Position playerPostions[MAX_CLIENTS]) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (sockets[i] != EMPTY_SOCKET) {
             int x = random10();
             int y = random10();
+            playerPostions[i].x = x;
+            playerPostions[i].y = y;
             for (int j = 0; j < i; j++) {
-                if (x == playerPostions[i].x && y == playerPostions[i].y) {
+                if (x == playerPostions[j].x && y == playerPostions[j].y) {
                     i--;  // reset this player's random position bc its the same as another players random position
                     break;
                 }
             }
+
         } else {  // if no connection to that player, set the position to -1,-1
+            printf("sockets[%d] = %d \n", i, sockets[i]);
             playerPostions[i].x = OFF_BOARD;
             playerPostions[i].y = OFF_BOARD;
         }
@@ -162,15 +173,18 @@ void* eventLoop(void* vargp) {
     Position playerPositions[4];  // keeps track of player positions
     srand(time(NULL));
 
-    for (int i = 0; i < 4; i++) {  // set the null player positions
-        playerPositions->client = i;
-        playerPositions->x = OFF_BOARD;
-        playerPositions->y = OFF_BOARD;
+    for (int i = 0; i < MAX_CLIENTS; i++) {  // set the null player positions
+        playerPositions[i].client = i;
+        playerPositions[i].x = OFF_BOARD;
+        playerPositions[i].y = OFF_BOARD;
     }
+
     while (1) {  // inifite loop ->
         // init set up the game / each level
         if (numPlayers <= 0) {  // check if there are any players connected
             continue;
+        } else {
+            printf("num players: %d \n", numPlayers);
         }
 
         int shouldExit = FALSE;
@@ -183,6 +197,9 @@ void* eventLoop(void* vargp) {
                 Rio_writen(sockets[i], GRID, sizeof(GRID));
                 Rio_writen(sockets[i], grid, sizeof(grid));
                 Rio_writen(sockets[i], POSITIONS, sizeof(POSITIONS));
+                for (int i = 0; i < MAX_CLIENTS; i++) {
+                    printf("player %d @ (%d, %d)", playerPositions[i].client, playerPositions[i].x, playerPositions[i].y);
+                }
                 Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
                 printf("wrote to socket\n");
             }
