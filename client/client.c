@@ -53,12 +53,12 @@ void initSDL() {
 
 Direction handleKeyDown(SDL_KeyboardEvent* event) {
     // ignore repeat events if key is held down
-    if (event->repeat) return NULL;
+    if (event->repeat) return -1;
 
     if (event->keysym.scancode == SDL_SCANCODE_Q ||
         event->keysym.scancode == SDL_SCANCODE_ESCAPE) {
         shouldExit = true;
-        return NULL;
+        return -1;
     }
 
     if (event->keysym.scancode == SDL_SCANCODE_UP ||
@@ -76,6 +76,8 @@ Direction handleKeyDown(SDL_KeyboardEvent* event) {
     if (event->keysym.scancode == SDL_SCANCODE_RIGHT ||
         event->keysym.scancode == SDL_SCANCODE_D)
         return RIGHT;
+
+    return -1;
 }
 
 void* processInputs(void* vargp) {
@@ -83,22 +85,24 @@ void* processInputs(void* vargp) {
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
+        Direction dir;
         switch (event.type) {
             case SDL_QUIT:
                 shouldExit = true;
                 break;
 
             case SDL_KEYDOWN:
-                Direction dir = handleKeyDown(&event.key);
-                if (dir == NULL) break;
+                dir = handleKeyDown(&event.key);
+                if (dir == -1) break;
                 // send that direction to the server
-                Rio_writen(clientfd, dir, sizeof(dir));
+                Rio_writen(clientfd, &dir, sizeof(dir));
                 break;
 
             default:
                 break;
         }
     }
+    return NULL;
 }
 
 void drawGrid() {
@@ -202,6 +206,7 @@ void* gameListener(void* vargp) {
             displayGrid();
         }
     }
+    return NULL;
 }
 
 int main(int argc, char* argv[]) {
@@ -253,6 +258,7 @@ int main(int argc, char* argv[]) {
 
     // read player num
     size_t n = Rio_readnb(&rio, &playerNum, sizeof(playerNum));
+    if (n == 0) shouldExit = true;
 
     // main game loop
     while (!shouldExit) {
@@ -262,8 +268,8 @@ int main(int argc, char* argv[]) {
                        NULL);  // create event loop thread
 
         // thread for listening to the player's moves
-        pthread_t tid;
-        Pthread_create(&tid, NULL, processInputs, NULL);
+        pthread_t tid2;
+        Pthread_create(&tid2, NULL, processInputs, NULL);
     }
 
     Close(clientfd);
