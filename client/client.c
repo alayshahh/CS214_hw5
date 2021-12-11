@@ -6,7 +6,7 @@
 #include <time.h>
 
 #include "../constants.h"
-#include "csapp.h"
+#include "../csapp.h"
 
 TILE grid[GRIDSIZE][GRIDSIZE];
 
