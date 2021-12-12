@@ -127,7 +127,7 @@ void drawGrid(TILE grid[GRIDSIZE][GRIDSIZE], Position playerPositions[MAX_CLIENT
             // increment score if i is playerNum
             if (isTomato) {
                 grid[playerPositions[i].x][playerPositions[i].y] = TILE_GRASS;
-                if (i == playerNum) score++;
+                if (i == playerNum) *score = *score + 1;
             }
         }
     }
