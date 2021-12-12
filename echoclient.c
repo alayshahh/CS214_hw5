@@ -24,6 +24,10 @@ int main(int argc, char **argv) {
     char input[2];
     TILE grid[GRIDSIZE][GRIDSIZE];
     Position playerPositions[MAX_CLIENTS];
+    int player;
+    n = Rio_readnb(&rio, &player, sizeof(player));  // first thing the client sends is the player number
+    printf("we are player %d\n", player);
+
     while ((n = Rio_readnb(&rio, &input, 2)) != 0) {
         // printf("server received %d bytes -> input: %c \n", (int)n, input);
         if (input[0] == 'G') {  // next thing we will receive is a grid
@@ -37,6 +41,7 @@ int main(int argc, char **argv) {
                 printf("]\n");
             }
         } else {  // we received a 'P' (POSITIONS)
+            printf("recieved Positiosn array\n");
             Rio_readnb(&rio, &playerPositions, sizeof(playerPositions));
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 printf("Player %d is at (%d, %d)\n", playerPositions[i].client, playerPositions[i].x, playerPositions[i].y);

@@ -8,12 +8,6 @@
 #include "../constants.h"
 #include "../csapp.h"
 
-TILE grid[GRIDSIZE][GRIDSIZE];
-
-Position playerPositions[MAX_CLIENTS];
-
-int score;
-int level;
 int numTomatoes;
 int playerNum;
 
@@ -29,9 +23,6 @@ SDL_Texture* tomatoTexture;
 SDL_Texture* playerTexture;
 
 int clientfd;
-
-// get a random value in the range [0, 1]
-double rand01() { return (double)rand() / (double)RAND_MAX; }
 
 void initSDL() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -81,10 +72,12 @@ Direction handleKeyDown(SDL_KeyboardEvent* event) {
 }
 
 void* processInputs(void* vargp) {
+    printf("processing shit\n");
     Pthread_detach(pthread_self());
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
+        printf("recieved event from player \n");
         Direction dir;
         switch (event.type) {
             case SDL_QUIT:
@@ -95,6 +88,7 @@ void* processInputs(void* vargp) {
                 dir = handleKeyDown(&event.key);
                 if (dir == -1) break;
                 // send that direction to the server
+                printf("player moved in the %d direction\n", dir);
                 Rio_writen(clientfd, &dir, sizeof(dir));
                 break;
 
@@ -102,12 +96,12 @@ void* processInputs(void* vargp) {
                 break;
         }
     }
+    printf("exiting the input thread\n");
     return NULL;
 }
 
-void drawGrid() {
+void drawGrid(TILE grid[GRIDSIZE][GRIDSIZE], Position playerPositions[MAX_CLIENTS], int* score) {
     SDL_Rect dest;
-
     for (int i = 0; i < GRIDSIZE; i++) {
         for (int j = 0; j < GRIDSIZE; j++) {
             dest.x = 64 * i;
@@ -118,7 +112,6 @@ void drawGrid() {
             SDL_RenderCopy(renderer, texture, NULL, &dest);
         }
     }
-
     // place player textures
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (playerPositions[i].x != OFF_BOARD &&
@@ -128,11 +121,9 @@ void drawGrid() {
             dest.y = 64 * playerPositions[i].y + HEADER_HEIGHT;
             SDL_QueryTexture(playerTexture, NULL, NULL, &dest.w, &dest.h);
             SDL_RenderCopy(renderer, playerTexture, NULL, &dest);
-
             // is it moving to a tomato?
             int isTomato =
                 grid[playerPositions[i].x][playerPositions[i].y] == TILE_TOMATO;
-
             // increment score if i is playerNum
             if (isTomato) {
                 grid[playerPositions[i].x][playerPositions[i].y] = TILE_GRASS;
@@ -142,56 +133,50 @@ void drawGrid() {
     }
 }
 
-void drawUI() {
+void drawUI(int score, int level) {
     // largest score/level supported is 2147483647
     char scoreStr[18];
     char levelStr[18];
     sprintf(scoreStr, "Score: %d", score);
     sprintf(levelStr, "Level: %d", level);
-
     SDL_Color white = {255, 255, 255};
     SDL_Surface* scoreSurface = TTF_RenderText_Solid(font, scoreStr, white);
     SDL_Texture* scoreTexture =
         SDL_CreateTextureFromSurface(renderer, scoreSurface);
-
     SDL_Surface* levelSurface = TTF_RenderText_Solid(font, levelStr, white);
     SDL_Texture* levelTexture =
         SDL_CreateTextureFromSurface(renderer, levelSurface);
-
     SDL_Rect scoreDest;
     TTF_SizeText(font, scoreStr, &scoreDest.w, &scoreDest.h);
     scoreDest.x = 0;
     scoreDest.y = 0;
-
     SDL_Rect levelDest;
     TTF_SizeText(font, levelStr, &levelDest.w, &levelDest.h);
     levelDest.x = GRID_DRAW_WIDTH - levelDest.w;
     levelDest.y = 0;
-
     SDL_RenderCopy(renderer, scoreTexture, NULL, &scoreDest);
     SDL_RenderCopy(renderer, levelTexture, NULL, &levelDest);
-
     SDL_FreeSurface(scoreSurface);
     SDL_DestroyTexture(scoreTexture);
-
     SDL_FreeSurface(levelSurface);
     SDL_DestroyTexture(levelTexture);
 }
 
-void displayGrid() {
+void displayGrid(TILE grid[GRIDSIZE][GRIDSIZE], Position playerPosition[MAX_CLIENTS], int* score, int* level) {
     SDL_SetRenderDrawColor(renderer, 0, 105, 6, 255);
     SDL_RenderClear(renderer);
-
-    drawGrid();
-    drawUI();
-
+    drawGrid(grid, playerPosition, score);
+    drawUI(*score, *level);
     SDL_RenderPresent(renderer);
-
     SDL_Delay(16);
 }
 
 void* gameListener(void* vargp) {
     Pthread_detach(pthread_self());
+    TILE grid[GRIDSIZE][GRIDSIZE];
+    Position playerPositions[MAX_CLIENTS];
+    int score = 0;
+    int level = 1;
     size_t n;
     char input[2];
 
@@ -200,23 +185,28 @@ void* gameListener(void* vargp) {
             level++;            // come back to this
             printf("receved grid object \n");
             Rio_readnb(&rio, &grid, sizeof(grid));
-            displayGrid();
+            printf("read grid\n");
+            displayGrid(grid, playerPositions, &score, &level);
+            printf("[ ");
+            for (int i = 0; i < GRIDSIZE; i++) {
+                for (int j = 0; j < GRIDSIZE; j++) {
+                    printf("%d, ", grid[i][j]);
+                }
+                printf("]\n");
+            }
+            printf("displaying grid\n");
         } else {  // we received a 'P' (POSITIONS)
             Rio_readnb(&rio, &playerPositions, sizeof(playerPositions));
-            displayGrid();
+            displayGrid(grid, playerPositions, &score, &level);
         }
     }
     return NULL;
 }
 
 int main(int argc, char* argv[]) {
-    srand(time(NULL));
-
-    level = 1;
-
     initSDL();
 
-    font = TTF_OpenFont("resources/Burbank-Big-Condensed-Bold-Font.otf",
+    font = TTF_OpenFont("../resources/Burbank-Big-Condensed-Bold-Font.otf",
                         HEADER_HEIGHT);
     if (font == NULL) {
         fprintf(stderr, "Error loading font: %s\n", TTF_GetError());
@@ -239,9 +229,9 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    grassTexture = IMG_LoadTexture(renderer, "resources/grass.png");
-    tomatoTexture = IMG_LoadTexture(renderer, "resources/tomato.png");
-    playerTexture = IMG_LoadTexture(renderer, "resources/player.png");
+    grassTexture = IMG_LoadTexture(renderer, "../resources/grass.png");
+    tomatoTexture = IMG_LoadTexture(renderer, "../resources/tomato.png");
+    playerTexture = IMG_LoadTexture(renderer, "../resources/player.png");
 
     // make connection to server
     char *host, *port /*, buf[MAXLINE]*/;
@@ -261,30 +251,31 @@ int main(int argc, char* argv[]) {
     if (n == 0) shouldExit = true;
 
     // main game loop
+    pthread_t tid;
+    Pthread_create(&tid, NULL, gameListener,
+                   NULL);  // create event loop thread
+
+    // thread for listening to the player's moves
+    pthread_t tid2;
+    Pthread_create(&tid2, NULL, processInputs, NULL);
     while (!shouldExit) {
         // thread for listening to the game
-        pthread_t tid;
-        Pthread_create(&tid, NULL, gameListener,
-                       NULL);  // create event loop thread
-
-        // thread for listening to the player's moves
-        pthread_t tid2;
-        Pthread_create(&tid2, NULL, processInputs, NULL);
+        ;
     }
 
     Close(clientfd);
 
-    // clean up everything
-    SDL_DestroyTexture(grassTexture);
-    SDL_DestroyTexture(tomatoTexture);
-    SDL_DestroyTexture(playerTexture);
+    // // clean up everything
+    // SDL_DestroyTexture(grassTexture);
+    // SDL_DestroyTexture(tomatoTexture);
+    // SDL_DestroyTexture(playerTexture);
 
-    TTF_CloseFont(font);
-    TTF_Quit();
+    // TTF_CloseFont(font);
+    // TTF_Quit();
 
-    IMG_Quit();
+    // IMG_Quit();
 
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    // SDL_DestroyRenderer(renderer);
+    // SDL_DestroyWindow(window);
+    // SDL_Quit();
 }
