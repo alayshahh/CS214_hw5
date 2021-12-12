@@ -42,7 +42,7 @@ void initSDL() {
     }
 }
 
-Direction handleKeyDown(SDL_KeyboardEvent* event) {
+int handleKeyDown(SDL_KeyboardEvent* event) {
     // ignore repeat events if key is held down
     if (event->repeat) return -1;
 
@@ -71,34 +71,34 @@ Direction handleKeyDown(SDL_KeyboardEvent* event) {
     return -1;
 }
 
-void* processInputs(void* vargp) {
-    printf("processing shit\n");
-    Pthread_detach(pthread_self());
-    SDL_Event event;
+// void* processInputs(void* vargp) {
+//     printf("processing shit\n");
+//     Pthread_detach(pthread_self());
+//     SDL_Event event;
 
-    while (SDL_PollEvent(&event)) {
-        printf("recieved event from player \n");
-        Direction dir;
-        switch (event.type) {
-            case SDL_QUIT:
-                shouldExit = true;
-                break;
+//     while (SDL_PollEvent(&event)) {
+//         // printf("recieved event from player \n");
+//         Direction dir;
+//         switch (event.type) {
+//             case SDL_QUIT:
+//                 shouldExit = true;
+//                 break;
 
-            case SDL_KEYDOWN:
-                dir = handleKeyDown(&event.key);
-                if (dir == -1) break;
-                // send that direction to the server
-                printf("player moved in the %d direction\n", dir);
-                Rio_writen(clientfd, &dir, sizeof(dir));
-                break;
+//             case SDL_KEYDOWN:
+//                 dir = handleKeyDown(&event.key);
+//                 if (dir == -1) break;
+//                 // send that direction to the server
+//                 printf("player moved in the %d direction\n", dir);
+//                 Rio_writen(clientfd, &dir, sizeof(dir));
+//                 break;
 
-            default:
-                break;
-        }
-    }
-    printf("exiting the input thread\n");
-    return NULL;
-}
+//             default:
+//                 break;
+//         }
+//     }
+//     printf("exiting the input thread\n");
+//     return NULL;
+// }
 
 void drawGrid(TILE grid[GRIDSIZE][GRIDSIZE], Position playerPositions[MAX_CLIENTS], int* score) {
     SDL_Rect dest;
@@ -176,11 +176,12 @@ void* gameListener(void* vargp) {
     TILE grid[GRIDSIZE][GRIDSIZE];
     Position playerPositions[MAX_CLIENTS];
     int score = 0;
-    int level = 1;
+    int level = 0;
     size_t n;
     char input[2];
 
     while ((n = Rio_readnb(&rio, &input, 2)) != 0) {
+        printf("recieved data from server\n");
         if (input[0] == 'G') {  // next thing we will receive is a grid
             level++;            // come back to this
             printf("receved grid object \n");
@@ -196,7 +197,12 @@ void* gameListener(void* vargp) {
             }
             printf("displaying grid\n");
         } else {  // we received a 'P' (POSITIONS)
+            // printf("recieved positions\n");
             Rio_readnb(&rio, &playerPositions, sizeof(playerPositions));
+            printf("recieved positions\n");
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                printf("player %d, position: %d %d\n", playerPositions[i].client, playerPositions[i].x, playerPositions[i].y);
+            }
             displayGrid(grid, playerPositions, &score, &level);
         }
     }
@@ -256,26 +262,48 @@ int main(int argc, char* argv[]) {
                    NULL);  // create event loop thread
 
     // thread for listening to the player's moves
-    pthread_t tid2;
-    Pthread_create(&tid2, NULL, processInputs, NULL);
+    // pthread_t tid2;
+    // Pthread_create(&tid2, NULL, processInputs, NULL);
     while (!shouldExit) {
         // thread for listening to the game
-        ;
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event)) {
+            // printf("recieved event from player \n");
+            int dir = -1;
+            switch (event.type) {
+                case SDL_QUIT:
+                    shouldExit = true;
+                    break;
+
+                case SDL_KEYDOWN:
+                    dir = handleKeyDown(&event.key);
+                    if (dir == -1) break;
+                    // send that direction to the server
+                    printf("player moved in the %d direction\n", dir);
+                    Rio_writen(clientfd, &dir, sizeof(dir));
+                    break;
+
+                default:
+                    break;
+            }
+        }
+        // printf("exiting the input loop\n");
     }
 
     Close(clientfd);
 
-    // // clean up everything
-    // SDL_DestroyTexture(grassTexture);
-    // SDL_DestroyTexture(tomatoTexture);
-    // SDL_DestroyTexture(playerTexture);
+    // clean up everything
+    SDL_DestroyTexture(grassTexture);
+    SDL_DestroyTexture(tomatoTexture);
+    SDL_DestroyTexture(playerTexture);
 
-    // TTF_CloseFont(font);
-    // TTF_Quit();
+    TTF_CloseFont(font);
+    TTF_Quit();
 
-    // IMG_Quit();
+    IMG_Quit();
 
-    // SDL_DestroyRenderer(renderer);
-    // SDL_DestroyWindow(window);
-    // SDL_Quit();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
