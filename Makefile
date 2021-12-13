@@ -17,7 +17,6 @@ CURRENT_DIR := .
 all: 
 	gcc $(CFLAGS) -c queue.c -o queue.o 
 	gcc $(CFLAGS) -c csapp.c -lpthread
-	# gcc $(CFLAGS) $(INCFLAGS) -c  ./client/client.c -o ./client/client.o csapp.o -lpthread
 	gcc $(CFLAGS) $(INCFLAGS) ./client/client.c -o ./client/client  $(LFLAGS) csapp.o -lpthread
 	gcc $(CFLAGS) ./server/server.c -o ./server/server queue.o csapp.o -lpthread
 	

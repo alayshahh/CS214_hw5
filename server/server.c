@@ -20,19 +20,19 @@ void listenInputs(int connfd, int player) {
     rio_t rio;
     Rio_readinitb(&rio, connfd);
     while ((n = Rio_readnb(&rio, &dir, sizeof(dir))) != 0) {
-        printf("Player %d moved %d ", player, dir);
+        // printf("Player %d moved %d ", player, dir);
         switch (dir) {
             case UP:
-                printf("UP\n");
+                // printf("UP\n");
                 break;
             case DOWN:
-                printf("DOWN\n");
+                // printf("DOWN\n");
                 break;
             case LEFT:
-                printf("LEFT\n");
+                // printf("LEFT\n");
                 break;
             case RIGHT:
-                printf("RIGHT\n");
+                // printf("RIGHT\n");
                 break;
         }
         Move* m = (Move*)malloc(sizeof(Move));
@@ -62,8 +62,10 @@ void* clientThread(void* vargp) {
             break;
         }
     }
+    Rio_writen(connfd, &player, sizeof(player));
     if (player == -1) {
         pthread_mutex_unlock(&lock);
+        Close(connfd);
         return NULL;
     }
     numPlayers++;
@@ -231,7 +233,7 @@ void* eventLoop(void* vargp) {
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (sockets[i] != EMPTY_SOCKET) {
                 Rio_writen(sockets[i], GRID, sizeof(GRID));
-
+                printf("grid before\n");
                 for (int i = 0; i < GRIDSIZE; i++) {
                     printf("[ ");
                     for (int j = 0; j < GRIDSIZE; j++) {
@@ -240,12 +242,21 @@ void* eventLoop(void* vargp) {
                     printf("]\n");
                 }
                 Rio_writen(sockets[i], grid, sizeof(grid));
+                printf("grid after\n");
+                for (int i = 0; i < GRIDSIZE; i++) {
+                    printf("[ ");
+                    for (int j = 0; j < GRIDSIZE; j++) {
+                        printf("%d, ", grid[i][j]);
+                    }
+                    printf("]\n");
+                }
                 Rio_writen(sockets[i], POSITIONS, sizeof(POSITIONS));
                 Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
                 Rio_writen(sockets[i], LEVEL, sizeof(LEVEL));
                 Rio_writen(sockets[i], &level, sizeof(level));
                 Rio_writen(sockets[i], SCORE, sizeof(SCORE));
                 Rio_writen(sockets[i], &score, sizeof(score));
+                printf("score  = %d", score);
             }
         }
 
@@ -273,10 +284,9 @@ void* eventLoop(void* vargp) {
             if (numPlayers == 0) {  //  if there are no more players, then we want to exit the game,  so new players can join & reset the stats
                 shouldExit = TRUE;
             }
-
             pthread_mutex_unlock(&lock);
-
             if (m == NULL) {  // if the dequeue funciton returns null then we cant do anything
+                // pthread_mutex_unlock(&lock);
                 continue;
             }
 
@@ -291,12 +301,25 @@ void* eventLoop(void* vargp) {
                     }
                 }
             }
+            // pthread_mutex_unlock(&lock);
 
             free(m);  // free the dequeued move
 
             if (numTomatoes == 0) {
                 printf("new game\n");
                 shouldExit = TRUE;
+            }
+            // numTomatoes = 0;
+            printf("grid is now: \n");
+            for (int k = 0; k < GRIDSIZE; k++) {
+                printf("[ ");
+                for (int l = 0; l < GRIDSIZE; l++) {
+                    // if (grid[k][l] == TILE_TOMATO) {
+                    //     numTomatoes++;
+                    // }
+                    printf("%d, ", grid[k][l]);
+                }
+                printf("]\n");
             }
         }
     }
