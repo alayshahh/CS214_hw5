@@ -14,27 +14,21 @@ CURRENT_DIR := .
 %.o: %.c
 	gcc $(CFLAGS) -c  $< -o $@ 
 
-$(CLIENT_DIR)/%.o: %.c 
-	gcc $(CFLAGS) $(INCFLAGS) -o $@ $^ $(LFLAGS) ../csapp.o -lpthread
-
-$(SERVER_DIR)/%.o: %.c 
-	gcc $(CFLAGS) -o $@ $^ ../queue.o ../csapp.o -lpthread
-
-
 all: 
 	gcc $(CFLAGS) -c queue.c -o queue.o 
 	gcc $(CFLAGS) -c csapp.c -lpthread
+	# gcc $(CFLAGS) $(INCFLAGS) -c  ./client/client.c -o ./client/client.o csapp.o -lpthread
 	gcc $(CFLAGS) $(INCFLAGS) ./client/client.c -o ./client/client  $(LFLAGS) csapp.o -lpthread
 	gcc $(CFLAGS) ./server/server.c -o ./server/server queue.o csapp.o -lpthread
+	
 
-
-
-csapp: csapp.o 
-	gcc $(CFLAGS) -c csapp.c -lpthread
-
-# echoclient: echoclient.c
-# 	gcc $(CFLAGS) echoclient.c csapp.o -lpthread -o $@
 
 
 clean:
 	rm -f  *.o
+	rm -f ./server/*.o
+	rm -f ./client/*.o
+	rm -f ./client/client
+	rm -f ./server/server
+
+	

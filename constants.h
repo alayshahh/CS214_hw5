@@ -57,4 +57,8 @@ typedef struct Move {
 
 #define POSITIONS "P"
 
+#define LEVEL "L"
+
+#define SCORE "S"
+
 #endif

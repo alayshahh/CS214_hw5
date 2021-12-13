@@ -68,9 +68,7 @@ void* clientThread(void* vargp) {
     }
     numPlayers++;
     sockets[player] = connfd;
-    Rio_writen(connfd, &player,
-               sizeof(player));  // if the player is accepted let them know
-                                 // which player they are
+    // Rio_writen(connfd, &player, sizeof(player));  // if the player is accepted let them know which player they are //no need collaborative score
     pthread_mutex_unlock(&lock);
     listenInputs(connfd, player);
     Close(connfd);
@@ -114,7 +112,7 @@ int initGrid(TILE grid[10][10], Position playerPositions[MAX_CLIENTS]) {
     }
 
     // ensure grid isn't empty
-    while (numTomatoes == 0) initGrid(grid, playerPositions);
+    while (numTomatoes == 0) numTomatoes = initGrid(grid, playerPositions);
     return numTomatoes;
 }
 
@@ -164,7 +162,7 @@ int makeMove(TILE grid[10][10], Position playerPositions[MAX_CLIENTS],
     Position p = playerPositions[player];
     int x = p.x;
     int y = p.y;
-    printf("old x %d, old y %d\n", x, y);
+    // printf("old x %d, old y %d\n", x, y);
     if (x == OFF_BOARD &&
         y == OFF_BOARD) {  // player is not connected anymore, not on board yet
         return FALSE;
@@ -210,36 +208,53 @@ void* eventLoop(void* vargp) {
     TILE grid[GRIDSIZE][GRIDSIZE];          // game board
     Position playerPositions[MAX_CLIENTS];  // keeps track of player positions
     srand(time(NULL));
-
+    int level = 0;
+    int score = 0;
     for (int i = 0; i < MAX_CLIENTS; i++) {  // set the null player positions
         playerPositions[i].client = i;
         playerPositions[i].x = OFF_BOARD;
         playerPositions[i].y = OFF_BOARD;
     }
-
     while (1) {  // inifite loop ->
         // init set up the game / each level
         if (numPlayers <= 0) {  // check if there are any players connected
+            level = 1;
+            score = 0;
             continue;
         }
 
         int shouldExit = FALSE;
         initPlayerPositions(playerPositions);
         int numTomatoes = initGrid(grid, playerPositions);
-
+        // score at the end of the round
         // write grid & init positions to clients
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (sockets[i] != EMPTY_SOCKET) {
                 Rio_writen(sockets[i], GRID, sizeof(GRID));
+
+                for (int i = 0; i < GRIDSIZE; i++) {
+                    printf("[ ");
+                    for (int j = 0; j < GRIDSIZE; j++) {
+                        printf("%d, ", grid[i][j]);
+                    }
+                    printf("]\n");
+                }
                 Rio_writen(sockets[i], grid, sizeof(grid));
                 Rio_writen(sockets[i], POSITIONS, sizeof(POSITIONS));
-                Rio_writen(sockets[i], playerPositions,
-                           sizeof(playerPositions));
+                Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
+                Rio_writen(sockets[i], LEVEL, sizeof(LEVEL));
+                Rio_writen(sockets[i], &level, sizeof(level));
+                Rio_writen(sockets[i], SCORE, sizeof(SCORE));
+                Rio_writen(sockets[i], &score, sizeof(score));
             }
         }
+
+        // book keeping for clients that join after game has started
+        level++;
+        score += numTomatoes;
+
         pthread_mutex_lock(&lock);
-        clearQueue(&eventQueue);  // remove any backlog of events that were not
-                                  // processed from last game
+        clearQueue(&eventQueue);  // remove any backlog of events that were not processed from last game
         pthread_mutex_unlock(&lock);
 
         while (!shouldExit) {
@@ -247,61 +262,32 @@ void* eventLoop(void* vargp) {
             pthread_mutex_lock(&lock);
             Move* m = dequeue(&eventQueue);
 
-            for (int i = 0; i < MAX_CLIENTS;
-                 i++) {  // move all disconnected players off the board & add
-                         // new players to the board & send board info
+            for (int i = 0; i < MAX_CLIENTS; i++) {  // move all disconnected players off the board & add new players to the board & send board info
 
                 if (sockets[i] == EMPTY_SOCKET) {
                     playerPositions[i].x = OFF_BOARD;
                     playerPositions[i].y = OFF_BOARD;
                 }
-
-                // } else if (playerPositions[i].x == OFF_BOARD &&
-                // playerPositions[i].y == OFF_BOARD) {  // new player has
-                // joined, connfd in sockets[i]
-
-                //     int added;
-                //     while ((added = addPlayer(grid, playerPositions, i)) ==
-                //     FALSE) {
-                //         ;
-                //     }
-                //     // write the grid
-                //     Rio_writen(sockets[i], GRID, sizeof(GRID));
-                //     Rio_writen(sockets[i], grid, sizeof(grid));
-                //     // write player positions
-                //     Rio_writen(sockets[i], POSITIONS, sizeof(POSITIONS));
-                //     Rio_writen(sockets[i], playerPositions,
-                //     sizeof(playerPositions));
-                // }
             }
 
-            if (numPlayers == 0) {
-                // if there are no more players, then we want to exit the game,
-                // so new players can join
+            if (numPlayers == 0) {  //  if there are no more players, then we want to exit the game,  so new players can join & reset the stats
                 shouldExit = TRUE;
             }
 
             pthread_mutex_unlock(&lock);
 
-            if (m == NULL) {  // if the dequeue funciton returns null then we
-                              // cant do anything
+            if (m == NULL) {  // if the dequeue funciton returns null then we cant do anything
                 continue;
             }
 
-            if (makeMove(
-                    grid, playerPositions, m,
-                    &numTomatoes)) {  // make the move, if return TRUE then send
-                                      // all updated poisitons to the client
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    printf("player %d is @ (%d, %d)\n",
-                           playerPositions[i].client, playerPositions[i].x,
-                           playerPositions[i].y);
-                }
+            if (makeMove(grid, playerPositions, m, &numTomatoes)) {  // make the move, if return TRUE then send all updated poisitons to the client
+                // for (int i = 0; i < MAX_CLIENTS; i++) {
+                //     printf("player %d is @ (%d, %d)\n", playerPositions[i].client, playerPositions[i].x, playerPositions[i].y);
+                // }
                 for (int i = 0; i < MAX_CLIENTS; i++) {
                     if (sockets[i] != EMPTY_SOCKET) {
                         Rio_writen(sockets[i], POSITIONS, sizeof(POSITIONS));
-                        Rio_writen(sockets[i], playerPositions,
-                                   sizeof(playerPositions));
+                        Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
                     }
                 }
             }
@@ -332,13 +318,9 @@ int main(int argc, char** argv) {
 
     Pthread_create(&tid, NULL, eventLoop, NULL);  // create event loop thread
 
-    // int port = atoi(argv[1]);
-
     listenfd = Open_listenfd(argv[1]);
     while (1) {
-        if (numPlayers <
-            MAX_CLIENTS) {  // if the number of clients == MAX_CLIENTS, then we
-                            // dont wanna accept more players
+        if (numPlayers < MAX_CLIENTS) {  // if the number of clients == MAX_CLIENTS, then we dont wanna accept more players
             clientlen = sizeof(struct sockaddr_storage);
             connfdp = Malloc(sizeof(int));
             *connfdp = Accept(listenfd, (SA*)&clientaddr, &clientlen);

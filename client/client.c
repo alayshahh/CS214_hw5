@@ -9,7 +9,6 @@
 #include "../csapp.h"
 
 int numTomatoes;
-int playerNum;
 
 bool shouldExit = false;
 rio_t rio;
@@ -71,35 +70,6 @@ int handleKeyDown(SDL_KeyboardEvent* event) {
     return -1;
 }
 
-// void* processInputs(void* vargp) {
-//     printf("processing shit\n");
-//     Pthread_detach(pthread_self());
-//     SDL_Event event;
-
-//     while (SDL_PollEvent(&event)) {
-//         // printf("recieved event from player \n");
-//         Direction dir;
-//         switch (event.type) {
-//             case SDL_QUIT:
-//                 shouldExit = true;
-//                 break;
-
-//             case SDL_KEYDOWN:
-//                 dir = handleKeyDown(&event.key);
-//                 if (dir == -1) break;
-//                 // send that direction to the server
-//                 printf("player moved in the %d direction\n", dir);
-//                 Rio_writen(clientfd, &dir, sizeof(dir));
-//                 break;
-
-//             default:
-//                 break;
-//         }
-//     }
-//     printf("exiting the input thread\n");
-//     return NULL;
-// }
-
 void drawGrid(TILE grid[GRIDSIZE][GRIDSIZE], Position playerPositions[MAX_CLIENTS], int* score) {
     SDL_Rect dest;
     for (int i = 0; i < GRIDSIZE; i++) {
@@ -124,10 +94,9 @@ void drawGrid(TILE grid[GRIDSIZE][GRIDSIZE], Position playerPositions[MAX_CLIENT
             // is it moving to a tomato?
             int isTomato =
                 grid[playerPositions[i].x][playerPositions[i].y] == TILE_TOMATO;
-            // increment score if i is playerNum
             if (isTomato) {
                 grid[playerPositions[i].x][playerPositions[i].y] = TILE_GRASS;
-                if (i == playerNum) *score = *score + 1;
+                *score = *score + 1;  // make it collaborative
             }
         }
     }
@@ -176,36 +145,48 @@ void* gameListener(void* vargp) {
     TILE grid[GRIDSIZE][GRIDSIZE];
     Position playerPositions[MAX_CLIENTS];
     int score = 0;
-    int level = 0;
+    int level = 1;
     size_t n;
-    char input[2];
+    char input[5];
+    printf("size of GRID: %lu, size of POSITIONS %lu, size of input buf %lu\n", sizeof(GRID), sizeof(POSITIONS), sizeof(input));
+    bool shouldDisplay = false;
 
-    while ((n = Rio_readnb(&rio, &input, 2)) != 0) {
+    while ((n = Rio_readnb(&rio, &input, sizeof(GRID))) != 0) {
         printf("recieved data from server\n");
         if (input[0] == 'G') {  // next thing we will receive is a grid
             level++;            // come back to this
             printf("receved grid object \n");
             Rio_readnb(&rio, &grid, sizeof(grid));
             printf("read grid\n");
-            displayGrid(grid, playerPositions, &score, &level);
-            printf("[ ");
             for (int i = 0; i < GRIDSIZE; i++) {
+                printf("[ ");
                 for (int j = 0; j < GRIDSIZE; j++) {
                     printf("%d, ", grid[i][j]);
                 }
                 printf("]\n");
             }
-            printf("displaying grid\n");
-        } else {  // we received a 'P' (POSITIONS)
+            shouldDisplay = true;
+            displayGrid(grid, playerPositions, &score, &level);
+        } else if (input[0] == 'P') {  // we received a 'P' (POSITIONS)
             // printf("recieved positions\n");
             Rio_readnb(&rio, &playerPositions, sizeof(playerPositions));
             printf("recieved positions\n");
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                printf("player %d, position: %d %d\n", playerPositions[i].client, playerPositions[i].x, playerPositions[i].y);
-            }
-            displayGrid(grid, playerPositions, &score, &level);
+            // for (int i = 0; i < MAX_CLIENTS; i++) {
+            //     printf("player %d, position: %d %d\n", playerPositions[i].client, playerPositions[i].x, playerPositions[i].y);
+            // }
+            if (shouldDisplay) displayGrid(grid, playerPositions, &score, &level);
+        } else if (input[0] == 'L') {
+            Rio_readnb(&rio, &level, sizeof(level));
+            printf("level recieved %d\n", level);
+            if (shouldDisplay) displayGrid(grid, playerPositions, &score, &level);
+        } else if (input[0] == 'S') {
+            if (shouldDisplay) displayGrid(grid, playerPositions, &score, &level);
+            printf("score recieved\n");
+        } else {
+            printf("unknown bytes %s\n", input);
         }
     }
+    shouldExit = true;
     return NULL;
 }
 
@@ -252,9 +233,7 @@ int main(int argc, char* argv[]) {
     clientfd = Open_clientfd(host, port);
     Rio_readinitb(&rio, clientfd);
 
-    // read player num
-    size_t n = Rio_readnb(&rio, &playerNum, sizeof(playerNum));
-    if (n == 0) shouldExit = true;
+    size_t n;
 
     // main game loop
     pthread_t tid;
