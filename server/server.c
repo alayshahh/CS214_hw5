@@ -19,7 +19,7 @@ void listenInputs(int connfd, int player) {
     Direction dir;
     rio_t rio;
     Rio_readinitb(&rio, connfd);
-    while ((n = Rio_readnb(&rio, &dir, sizeof(dir))) != 0) {
+    while ((n = rio_readnb(&rio, &dir, sizeof(dir))) > 0) {
         // printf("Player %d moved %d ", player, dir);
         switch (dir) {
             case UP:
@@ -134,7 +134,7 @@ void initPlayerPositions(Position playerPostions[MAX_CLIENTS]) {
             }
 
         } else {  // if no connection to that player, set the position to -1,-1
-            printf("sockets[%d] = %d \n", i, sockets[i]);
+            // printf("sockets[%d] = %d \n", i, sockets[i]);
             playerPostions[i].x = OFF_BOARD;
             playerPostions[i].y = OFF_BOARD;
         }
@@ -233,30 +233,30 @@ void* eventLoop(void* vargp) {
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (sockets[i] != EMPTY_SOCKET) {
                 Rio_writen(sockets[i], GRID, sizeof(GRID));
-                printf("grid before\n");
-                for (int i = 0; i < GRIDSIZE; i++) {
-                    printf("[ ");
-                    for (int j = 0; j < GRIDSIZE; j++) {
-                        printf("%d, ", grid[i][j]);
-                    }
-                    printf("]\n");
-                }
+                // printf("grid before\n");
+                // for (int i = 0; i < GRIDSIZE; i++) {
+                //     printf("[ ");
+                //     for (int j = 0; j < GRIDSIZE; j++) {
+                //         printf("%d, ", grid[i][j]);
+                //     }
+                //     printf("]\n");
+                // }
                 Rio_writen(sockets[i], grid, sizeof(grid));
-                printf("grid after\n");
-                for (int i = 0; i < GRIDSIZE; i++) {
-                    printf("[ ");
-                    for (int j = 0; j < GRIDSIZE; j++) {
-                        printf("%d, ", grid[i][j]);
-                    }
-                    printf("]\n");
-                }
+                // printf("grid after\n");
+                // for (int i = 0; i < GRIDSIZE; i++) {
+                //     printf("[ ");
+                //     for (int j = 0; j < GRIDSIZE; j++) {
+                //         printf("%d, ", grid[i][j]);
+                //     }
+                //     printf("]\n");
+                // }
                 Rio_writen(sockets[i], POSITIONS, sizeof(POSITIONS));
                 Rio_writen(sockets[i], playerPositions, sizeof(playerPositions));
                 Rio_writen(sockets[i], LEVEL, sizeof(LEVEL));
                 Rio_writen(sockets[i], &level, sizeof(level));
                 Rio_writen(sockets[i], SCORE, sizeof(SCORE));
                 Rio_writen(sockets[i], &score, sizeof(score));
-                printf("score  = %d", score);
+                // printf("score  = %d", score);
             }
         }
 
@@ -306,20 +306,7 @@ void* eventLoop(void* vargp) {
             free(m);  // free the dequeued move
 
             if (numTomatoes == 0) {
-                printf("new game\n");
                 shouldExit = TRUE;
-            }
-            // numTomatoes = 0;
-            printf("grid is now: \n");
-            for (int k = 0; k < GRIDSIZE; k++) {
-                printf("[ ");
-                for (int l = 0; l < GRIDSIZE; l++) {
-                    // if (grid[k][l] == TILE_TOMATO) {
-                    //     numTomatoes++;
-                    // }
-                    printf("%d, ", grid[k][l]);
-                }
-                printf("]\n");
             }
         }
     }
@@ -327,7 +314,6 @@ void* eventLoop(void* vargp) {
 
 int main(int argc, char** argv) {
     if (pthread_mutex_init(&lock, NULL) != 0) {
-        printf("\n mutex init has failed\n");
         return 1;
     }
     for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -347,7 +333,6 @@ int main(int argc, char** argv) {
             clientlen = sizeof(struct sockaddr_storage);
             connfdp = Malloc(sizeof(int));
             *connfdp = Accept(listenfd, (SA*)&clientaddr, &clientlen);
-            printf("some connection has been made\n");
             Pthread_create(&tid, NULL, clientThread, connfdp);
         }
     }
