@@ -19,4 +19,3 @@ To run client:
 NOTE:
 sometimes the client fails with a window rendering issue, I believe it is some issue with the SDL library. You just need to re run the client & server program. 
 
-
